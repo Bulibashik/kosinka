@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shadow Mission</title>
+
+<style>
+body{
+    margin:0;
+    background:#0f172a;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    color:white;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    min-height:100vh;
+}
+
+.game-container{
+    width:960px;
+    background:white;
+    border-radius:18px;
+    overflow:hidden;
+    box-shadow:0 12px 30px rgba(0,0,0,.3);
+}
+
+.game-header{
+    background:linear-gradient(135deg,#6366f1,#9333ea);
+    padding:24px;
+    text-align:center;
+}
+
+.game-title{
+    font-size:34px;
+    font-weight:700;
+}
+
+.game-subtitle{
+    opacity:.9;
+    margin-top:8px;
+}
+
+.content{
+    padding:16px;
+    background:linear-gradient(135deg,#f1f5f9,#dbeafe);
+}
+
+.stats{
+    display:flex;
+    gap:16px;
+    justify-content:center;
+    margin-bottom:16px;
+    flex-wrap:wrap;
+}
+
+.card{
+    background:white;
+    border-radius:12px;
+    padding:12px 20px;
+    min-width:120px;
+    text-align:center;
+    box-shadow:0 3px 10px rgba(0,0,0,.1);
+}
+
+.label{
+    color:#64748b;
+    font-size:14px;
+    font-weight:600;
+}
+
+.value{
+    font-size:28px;
+    font-weight:700;
+    color:#7c3aed;
+}
+
+.canvas-wrap{
+    background:#020617;
+    border-radius:16px;
+    padding:12px;
+}
+
+canvas{
+    display:block;
+    width:100%;
+    height:540px;
+    border-radius:12px;
+    background:
+      linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px),
+      #020617;
+    background-size:40px 40px;
+}
+
+.controls{
+    margin-top:16px;
+    display:flex;
+    justify-content:center;
+    gap:12px;
+}
+
+button{
+    border:none;
+    padding:14px 20px;
+    border-radius:12px;
+    background:linear-gradient(135deg,#6366f1,#9333ea);
+    color:white;
+    font-size:16px;
+    font-weight:700;
+    cursor:pointer;
+}
+
+.info{
+    margin-top:16px;
+    background:white;
+    color:#334155;
+    border-radius:12px;
+    padding:16px;
+    line-height:1.7;
+}
+
+.highlight{
+    color:#7c3aed;
+    font-weight:700;
+}
+</style>
+</head>
+
+<body>
+
+<div class="game-container">
+
+<div class="game-header">
+    <div class="game-title">SHADOW MISSION</div>
+    <div class="game-subtitle">
+        Проходи уровни, уничтожай врагов и выживи с одной жизнью
+    </div>
+</div>
+
+<div class="content">
+
+<div class="stats">
+    <div class="card">
+        <div class="label">Уровень</div>
+        <div class="value" id="level">1</div>
+    </div>
+
+    <div class="card">
+        <div class="label">Убито врагов</div>
+        <div class="value" id="kills">0</div>
+    </div>
+
+    <div class="card">
+        <div class="label">Патроны</div>
+        <div class="value" id="ammo">15</div>
+    </div>
+</div>
+
+<div class="canvas-wrap">
+    <canvas id="game" width="920" height="540"></canvas>
+</div>
+
+<div class="controls">
+    <button id="startBtn">Старт</button>
+    <button id="restartBtn">Рестарт</button>
+</div>
+
+<div class="info">
+    <span class="highlight">Управление:</span>
+    WASD / стрелки — движение,
+    SPACE — выстрел.
+    <br><br>
+    <span class="highlight">Цель:</span>
+    уничтожить всех врагов на уровне и перейти дальше.
+    Если враг коснётся игрока — игра окончена.
+</div>
+
+</div>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+const levelEl = document.getElementById('level');
+const killsEl = document.getElementById('kills');
+const ammoEl = document.getElementById('ammo');
+
+const startBtn = document.getElementById('startBtn');
+const restartBtn = document.getElementById('restartBtn');
+
+let gameStarted = false;
+let gameOver = false;
+
+let level = 1;
+let kills = 0;
+let ammo = 15;
+
+const player = {
+    x:100,
+    y:250,
+    w:40,
+    h:40,
+    speed:5
+};
+
+const keys = {};
+
+let bullets = [];
+let enemies = [];
+
+function spawnEnemies(count){
+    enemies = [];
+
+    for(let i=0;i<count;i++){
+        enemies.push({
+            x:600 + Math.random()*250,
+            y:60 + Math.random()*400,
+            w:40,
+            h:40,
+            speed:1 + level * 0.3
+        });
+    }
+}
+
+function drawPlayer(){
+    ctx.fillStyle='#22d3ee';
+    ctx.shadowColor='#22d3ee';
+    ctx.shadowBlur=20;
+    ctx.fillRect(player.x,player.y,player.w,player.h);
+    ctx.shadowBlur=0;
+}
+
+function drawBullets(){
+    bullets.forEach(b=>{
+        ctx.fillStyle='#facc15';
+        ctx.fillRect(b.x,b.y,b.w,b.h);
+    });
+}
+
+function drawEnemies(){
+    enemies.forEach(e=>{
+        ctx.fillStyle='#ef4444';
+        ctx.shadowColor='#ef4444';
+        ctx.shadowBlur=15;
+        ctx.fillRect(e.x,e.y,e.w,e.h);
+        ctx.shadowBlur=0;
+    });
+}
+
+function updatePlayer(){
+
+    if(keys['ArrowUp'] || keys['KeyW']) player.y -= player.speed;
+    if(keys['ArrowDown'] || keys['KeyS']) player.y += player.speed;
+    if(keys['ArrowLeft'] || keys['KeyA']) player.x -= player.speed;
+    if(keys['ArrowRight'] || keys['KeyD']) player.x += player.speed;
+
+    if(player.x < 0) player.x = 0;
+    if(player.y < 0) player.y = 0;
+    if(player.x + player.w > canvas.width) player.x = canvas.width-player.w;
+    if(player.y + player.h > canvas.height) player.y = canvas.height-player.h;
+}
+
+function updateBullets(){
+    bullets.forEach(b=>{
+        b.x += b.speed;
+    });
+
+    bullets = bullets.filter(b=>b.x < canvas.width);
+}
+
+function updateEnemies(){
+
+    enemies.forEach(enemy=>{
+
+        if(enemy.x > player.x){
+            enemy.x -= enemy.speed;
+        }
+
+        if(enemy.y < player.y){
+            enemy.y += enemy.speed;
+        }
+
+        if(enemy.y > player.y){
+            enemy.y -= enemy.speed;
+        }
+
+        if(
+            player.x < enemy.x + enemy.w &&
+            player.x + player.w > enemy.x &&
+            player.y < enemy.y + enemy.h &&
+            player.y + player.h > enemy.y
+        ){
+            endGame();
+        }
+    });
+}
+
+function collisions(){
+
+    bullets.forEach((bullet,bIndex)=>{
+
+        enemies.forEach((enemy,eIndex)=>{
+
+            if(
+                bullet.x < enemy.x + enemy.w &&
+                bullet.x + bullet.w > enemy.x &&
+                bullet.y < enemy.y + enemy.h &&
+                bullet.y + bullet.h > enemy.y
+            ){
+
+                bullets.splice(bIndex,1);
+                enemies.splice(eIndex,1);
+
+                kills++;
+                killsEl.textContent = kills;
+            }
+        });
+    });
+
+    if(enemies.length === 0){
+        nextLevel();
+    }
+}
+
+function nextLevel(){
+    level++;
+    ammo += 8;
+
+    levelEl.textContent = level;
+    ammoEl.textContent = ammo;
+
+    spawnEnemies(level + 2);
+}
+
+function shoot(){
+
+    if(!gameStarted){
+        return;
+    }
+
+    if(ammo <= 0 || gameOver){
+        return;
+    }
+
+    bullets.push({
+        x:player.x + player.w,
+        y:player.y + 16,
+        w:14,
+        h:6,
+        speed:9
+    });
+
+    ammo--;
+    ammoEl.textContent = ammo;
+}
+
+function render(){
+
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    drawPlayer();
+    drawBullets();
+    drawEnemies();
+
+    if(gameOver){
+
+        ctx.fillStyle='white';
+        ctx.textAlign='center';
+
+        ctx.font='bold 48px Arial';
+        ctx.fillText('GAME OVER',canvas.width/2,canvas.height/2);
+
+        ctx.font='26px Arial';
+        ctx.fillText('Ты прошёл ' + (level-1) + ' уровней',canvas.width/2,canvas.height/2 + 50);
+    }
+}
+
+function loop(){
+
+    if(gameOver){
+        render();
+        return;
+    }
+
+    updatePlayer();
+    updateBullets();
+    updateEnemies();
+    collisions();
+
+    render();
+
+    requestAnimationFrame(loop);
+}
+
+function startGame(){
+
+    if(gameStarted){
+        return;
+    }
+
+    gameStarted = true;
+
+    spawnEnemies(level + 2);
+
+    loop();
+}
+
+function restartGame(){
+
+    level = 1;
+    kills = 0;
+    ammo = 15;
+
+    levelEl.textContent = level;
+    killsEl.textContent = kills;
+    ammoEl.textContent = ammo;
+
+    bullets = [];
+    enemies = [];
+
+    player.x = 100;
+    player.y = 250;
+
+    gameStarted = false;
+    gameOver = false;
+
+    render();
+}
+
+function endGame(){
+    gameOver = true;
+}
+
+window.addEventListener('keydown',(e)=>{
+
+    keys[e.code] = true;
+
+    if(
+        ['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight',
+         'KeyW','KeyA','KeyS','KeyD'].includes(e.code)
+    ){
+        e.preventDefault();
+    }
+
+    if(e.code === 'Space'){
+        shoot();
+    }
+});
+
+window.addEventListener('keyup',(e)=>{
+    keys[e.code] = false;
+});
+
+startBtn.addEventListener('click',startGame);
+restartBtn.addEventListener('click',restartGame);
+
+render();
+</script>
+
+</body>
+</html>
